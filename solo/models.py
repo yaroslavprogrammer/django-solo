@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.cache import get_cache
 from django.db import models
+from django.db.models.signals import post_save, post_delete
 
 from solo import settings as solo_settings
 
@@ -45,3 +46,15 @@ class SingletonModel(models.Model):
             obj, created = cls.objects.get_or_create(pk=1)
             obj.set_to_cache()
         return obj
+
+
+def expire_singletonmodel(sender, **kwargs):
+    model = kwargs['instance']
+    key = model.get_cache_key()
+    cache_name = getattr(settings, 'SOLO_CACHE', solo_settings.SOLO_CACHE)
+    if not cache_name:
+        return None
+    cache = get_cache(cache_name)
+    cache.delete(key)
+
+post_save.connect(expire_singletonmodel, SingletonModel)
